@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ghost-ada
+spec:
+  ports:
+    - port: 80
+      targetPort: http
+  selector:
+    app: ghost-ada
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ghost-ada-ingress
+spec:
+  rules:
+  - host: textkrieg.de
+    http:
+      paths:
+      - backend:
+          serviceName: ghost-ada
+          servicePort: 80
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ghost-ada
+  labels:
+    app: ghost-ada
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ghost-ada
+    spec:
+      containers:
+      - image: quay.io/fivepi/ghost-ada
+        name: ghost-ada
+        resources:
+          limits:
+            cpu: 800m
+            memory: 80Mi
+          requests:
+            cpu: 800m
+            memory: 50Mi
+        ports:
+        - name: http
+          containerPort: 8080
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/ghost
+        command: [ "sh", "-c", "DATABASE_URL=\"pg://ghost_ada:$DB_PASSWORD@$POSTGRES_SERVICE_HOST:$POSTGRES_SERVICE_PORT/ghost_ada\" exec node index" ]
+        env:
+        - name: URL
+          value: "http://textkrieg.de"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: default
+              key: pg-ghost-ada-password
+      volumes:
+        - name: data
+          flexVolume:
+            driver: "5pi.de/do-volume"
+            fsType: "ext4"
+            options:
+              volume: "ghost-ada"

@@ -1,0 +1,83 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+spec:
+  ports:
+    - port: 80
+      targetPort: http
+  selector:
+    app: grafana
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+spec:
+  rules:
+  - host: grafana.edge.int.5pi.de
+    http:
+      paths:
+      - backend:
+          serviceName: grafana
+          servicePort: 80
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - image: grafana/grafana
+        name: grafana
+        resources:
+          limits:
+            cpu: 200m
+            memory: 80Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+        ports:
+        - name: http
+          containerPort: 3000
+        command: [ "sh", "-c", 
+          "GF_DATABASE_HOST=$POSTGRES_SERVICE_HOST:$POSTGRES_SERVICE_PORT exec /run.sh"
+        ]
+        env:
+        - name: GF_USERS_ALLOW_SIGN_UP
+          value: "false"
+        - name: GF_DATABASE_TYPE
+          value: postgres
+        - name: GF_DATABASE_NAME
+          value: grafana
+        - name: GF_DATABASE_USER
+          value: grafana
+        - name: GF_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: default
+              key: pg-grafana-password
+        - name: GF_AUTH_GOOGLE_ENABLED
+          value: "true"
+        - name: GF_AUTH_GOOGLE_ALLOW_SIGN_UP
+          value: "true"
+        - name: GF_AUTH_GOOGLE_ALLOWED_DOMAINS
+          value: freigeist.org textkrieg.de
+        - name: GF_AUTH_GOOGLE_CLIENT_ID
+          value: 666698025908-46fck0m1ngeuktl3b7jva23dsl6l0f9l.apps.googleusercontent.com
+        - name: GF_AUTH_GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: default
+              key: grafana-gauth-client-secret
+        - name: GF_SERVER_ROOT_URL
+          value: https://grafana.edge.int.5pi.de

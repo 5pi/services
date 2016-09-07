@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: traefik-ingress-controller
+  namespace: kube-system
+  labels:
+    k8s-app: traefik-ingress-lb
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      k8s-app: traefik-ingress-lb
+  template:
+    metadata:
+      labels:
+        k8s-app: traefik-ingress-lb
+        name: traefik-ingress-lb
+        version: v1.0.2
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+      - image: traefik:v1.0.2
+        name: traefik-ingress-lb
+        resources:
+          limits:
+            cpu: 200m
+            memory: 30Mi
+          requests:
+            cpu: 100m
+            memory: 20Mi
+        ports:
+        - name: http
+          containerPort: 80
+          hostPort: 80
+        - name: https
+          containerPort: 443
+          hostPort: 443
+        - name: admin
+          containerPort: 8080
+        args:
+        - --web
+        - --kubernetes
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/traefik
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: config-volume
+        configMap:
+          name: traefik-config
+      - name: data
+        hostPath:
+          path: /data/acme

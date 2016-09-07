@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ghost-fish
+spec:
+  ports:
+    - port: 80
+      targetPort: http
+  selector:
+    app: ghost-fish
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ghost-fish-ingress
+spec:
+  rules:
+  - host: 5pi.de
+    http:
+      paths:
+      - backend:
+          serviceName: ghost-fish
+          servicePort: 80
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ghost-fish
+  labels:
+    app: ghost-fish
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ghost-fish
+    spec:
+      containers:
+      - image: fish/ghost
+        name: ghost-fish
+        resources:
+          limits:
+            cpu: 200m
+            memory: 80Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+        ports:
+        - name: http
+          containerPort: 8080
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/ghost
+        command: [ "sh", "-c", "DATABASE_URL=\"pg://ghost_fish:$DB_PASSWORD@$POSTGRES_SERVICE_HOST:$POSTGRES_SERVICE_PORT/ghost_fish\" exec node index" ]
+        env:
+        - name: URL
+          value: "http://5pi.de"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: default
+              key: pg-ghost-fish-password
+      volumes:
+        - name: data
+          flexVolume:
+            driver: "5pi.de/do-volume"
+            fsType: "ext4"
+            options:
+              volume: "ghost-fish"
