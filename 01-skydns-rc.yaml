@@ -12,12 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file should be kept in sync with cluster/images/hyperkube/dns-rc.yaml
-
-# TODO - At some point, we need to rename all skydns-*.yaml.* files to kubedns-*.yaml.*
-
-# __MACHINE_GENERATED_WARNING__
-
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-dns
+  namespace: kube-system
+  labels:
+    k8s-app: kube-dns
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "KubeDNS"
+spec:
+  selector:
+    k8s-app: kube-dns
+  clusterIP: 10.10.10.10 # Needs to match kubelet's --cluster-ip
+  ports:
+  - name: dns
+    port: 53
+    protocol: UDP
+  - name: dns-tcp
+    port: 53
+    protocol: TCP
+---
 apiVersion: v1
 kind: ReplicationController
 metadata:
@@ -28,7 +43,7 @@ metadata:
     version: v19
     kubernetes.io/cluster-service: "true"
 spec:
-  replicas: __PILLAR__DNS__REPLICAS__
+  replicas: 2
   selector:
     k8s-app: kube-dns
     version: v19
@@ -75,10 +90,8 @@ spec:
           initialDelaySeconds: 30
           timeoutSeconds: 5
         args:
-        # command = "/kube-dns"
-        - --domain=__PILLAR__DNS__DOMAIN__.
+        - --domain=int.5pi.de # Needs to match tf env DOMAIN (used for kubelet's --cluster-domain)
         - --dns-port=10053
-        __PILLAR__FEDERATIONS__DOMAIN__MAP__
         ports:
         - containerPort: 10053
           name: dns-local
@@ -114,7 +127,7 @@ spec:
             # net memory requested by the pod constant.
             memory: 50Mi
         args:
-        - -cmd=nslookup kubernetes.default.svc.__PILLAR__DNS__DOMAIN__ 127.0.0.1 >/dev/null && nslookup kubernetes.default.svc.__PILLAR__DNS__DOMAIN__ 127.0.0.1:10053 >/dev/null
+        - -cmd=nslookup kubernetes.default.svc.int.5pi.de 127.0.0.1 >/dev/null && nslookup kubernetes.default.svc.int.5pi.de 127.0.0.1:10053 >/dev/null
         - -port=8080
         - -quiet
         ports:
