@@ -14,7 +14,14 @@ kind: ConfigMap
 metadata:
   name: prometheus-config
 data:
+  alert.rules: |-
+    ALERT EtcdNoLeader  IF etcd_server_has_leader == 0 FOR 1m
+    ALERT DockerTimeout IF irate(kubelet_docker_operations_timeout[5m]) > 0 FOR 1m
+    ALERT DockerErrors  IF irate(kubelet_docker_operations_errors[5m])  > 0 FOR 1m
+    ALERT APILatency    IF apiserver_request_latencies_summary{quantile="0.9",verb=~"POST|GET|DELETE"} / 1000000 > 5 FOR 1m
   prometheus.yml: |-
+    rule_files:
+    - /etc/prometheus/alert.rules
     scrape_configs:
     - job_name: 'node'
       tls_config:
