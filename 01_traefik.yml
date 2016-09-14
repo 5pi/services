@@ -24,7 +24,6 @@ spec:
         name: traefik-ingress-lb
         resources:
           limits:
-            cpu: 200m
             memory: 30Mi
           requests:
             cpu: 100m

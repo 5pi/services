@@ -67,10 +67,10 @@ spec:
           # "burstable" category so the kubelet doesn't backoff from restarting it.
           limits:
             cpu: 100m
-            memory: 170Mi
+            memory: 50Mi
           requests:
             cpu: 100m
-            memory: 70Mi
+            memory: 30Mi
         livenessProbe:
           httpGet:
             path: /healthz
@@ -118,14 +118,14 @@ spec:
           # keep request = limit to keep this container in guaranteed class
           limits:
             cpu: 10m
-            memory: 50Mi
+            memory: 10Mi
           requests:
             cpu: 10m
             # Note that this container shouldn't really need 50Mi of memory. The
             # limits are set higher than expected pending investigation on #29688.
             # The extra memory was stolen from the kubedns container to keep the
             # net memory requested by the pod constant.
-            memory: 50Mi
+            memory: 10Mi
         args:
         - -cmd=nslookup kubernetes.default.svc.int.5pi.de 127.0.0.1 >/dev/null && nslookup kubernetes.default.svc.int.5pi.de 127.0.0.1:10053 >/dev/null
         - -port=8080

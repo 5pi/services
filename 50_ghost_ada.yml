@@ -40,10 +40,9 @@ spec:
         name: ghost-ada
         resources:
           limits:
-            cpu: 800m
             memory: 80Mi
           requests:
-            cpu: 800m
+            cpu: 400m
             memory: 50Mi
         ports:
         - name: http
