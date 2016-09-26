@@ -36,7 +36,7 @@ spec:
         app: ghost-ada
     spec:
       containers:
-      - image: quay.io/fivepi/ghost-ada
+      - image: quay.io/fivepi/ghost-ada@sha256:45139303895d6f9c8d8fc6bf8f0a7d4029789f841835f8738e5fc16630ff8780
         name: ghost-ada
         resources:
           limits:

@@ -9,6 +9,11 @@ data:
     ALERT DockerTimeout IF irate(kubelet_docker_operations_timeout[5m]) > 0 FOR 1m
     ALERT DockerErrors  IF irate(kubelet_docker_operations_errors[5m])  > 0 FOR 1m
     ALERT APILatency    IF apiserver_request_latencies_summary{quantile="0.9",verb=~"POST|GET|DELETE"} / 1000000 > 5 FOR 1m
+    ALERT PodRestarts   IF rate(kube_pod_container_status_restarts[5m]) > 0 FOR 1m
+    ALERT ProbeFailed   IF probe_success == 0 FOR 1m
+    ALERT ProbeCertExp  IF probe_ssl_earliest_cert_expiry - time() < 86400 * 7 FOR 1m
+    ALERT ProbeSlow     IF probe_duration_seconds > 0.5 FOR 1m
+
   alertmanager.yml.in: |-
     global:
       # The smarthost and SMTP sender used for mail notifications.
@@ -34,6 +39,28 @@ data:
     rule_files:
     - /etc/prometheus/alert.rules
     scrape_configs:
+    - job_name: 'blackbox'
+      metrics_path: /probe
+      params:
+        module: [http_2xx]
+      static_configs:
+      - targets:
+        - https://textkrieg.de
+        - https://5pi.de
+      relabel_configs:
+      - source_labels: [__address__]
+        regex: (.*)
+        target_label: __param_target
+        replacement: ${1}
+      - source_labels: [__param_target]
+        regex: (.*)
+        target_label: instance
+        replacement: ${1}
+      - source_labels: []
+        regex: .*
+        target_label: __address__
+        replacement: blackbox-exporter
+
     - job_name: 'node'
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
