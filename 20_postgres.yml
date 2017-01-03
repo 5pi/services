@@ -23,7 +23,7 @@ spec:
         app: postgres
     spec:
       containers:
-      - image: postgres
+      - image: postgres:9.5
         name: postgres
         ports:
         - name: postgres-client
