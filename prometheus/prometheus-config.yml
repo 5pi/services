@@ -4,15 +4,16 @@ metadata:
   name: prometheus-config
 data:
   alert.rules: |-
-    ALERT InstanceDown  IF up == 0 FOR 1m
+    ALERT InstanceDown  IF up == 0 FOR 5m
     ALERT EtcdNoLeader  IF etcd_server_has_leader == 0 FOR 1m
     ALERT DockerTimeout IF irate(kubelet_docker_operations_timeout[5m]) > 0 FOR 1m
     ALERT DockerErrors  IF irate(kubelet_docker_operations_errors[5m])  > 0 FOR 1m
     ALERT APILatency    IF apiserver_request_latencies_summary{quantile="0.9",verb=~"POST|GET|DELETE"} / 1000000 > 5 FOR 1m
-    ALERT PodRestarts   IF rate(kube_pod_container_status_restarts[5m]) > 0 FOR 1m
+    ALERT PodRestarts   IF rate(kube_pod_container_status_restarts[5m]) > 0 FOR 5m
     ALERT ProbeFailed   IF probe_success == 0 FOR 1m
     ALERT ProbeCertExp  IF probe_ssl_earliest_cert_expiry - time() < 86400 * 7 FOR 1m
-    ALERT ProbeSlow     IF probe_duration_seconds > 0.5 FOR 1m
+    ALERT ProbeSlowTLS  IF probe_duration_seconds{instance=~"https:.*"} > 5 FOR 5m
+    ALERT ProbeSlow     IF probe_duration_seconds{instance=~"http:.*"}  > 1 FOR 1m
 
   alertmanager.yml.in: |-
     global:
@@ -26,7 +27,7 @@ data:
       group_wait: 30s
       group_interval: 10s
       repeat_interval: 6h
-    
+
     receivers:
     - name: 'default'
       email_configs:
@@ -65,12 +66,9 @@ data:
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
       bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-    
+
       kubernetes_sd_configs:
-      - api_servers:
-        - 'https://10.10.10.1'
-        in_cluster: true
-        role: node
+      - role: node
 
       relabel_configs:
       - source_labels: [__address__]
@@ -85,12 +83,9 @@ data:
         cert_file: /etc/host-ssl/server.pem
         key_file: /etc/host-ssl/server-key.pem
       bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-    
+
       kubernetes_sd_configs:
-      - api_servers:
-        - 'https://10.10.10.1'
-        in_cluster: true
-        role: node
+      - role: node
 
       relabel_configs:
       - target_label: __scheme__
@@ -102,34 +97,33 @@ data:
         regex: (.+)(?::\d+)
         replacement: $1:2379
 
-    - job_name: 'kubernetes-cluster'
+    - job_name: 'kubernetes-apiservers'
       scheme: https
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
       bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-    
+
       kubernetes_sd_configs:
-      - api_servers:
-        - 'https://10.10.10.1'
-        in_cluster: true
-        role: apiserver
-   
+      - role: endpoints
+      # the default/kubernetes service.
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: default;kubernetes;https
+
     - job_name: 'kubernetes-nodes'
       scheme: https
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
       bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-    
+
       kubernetes_sd_configs:
-      - api_servers:
-        - 'https://10.10.10.1'
-        in_cluster: true
-        role: node
-    
+      - role: node
+
       relabel_configs:
       - action: labelmap
         regex: __meta_kubernetes_node_label_(.+)
-    
+
     # Scrape config for service endpoints.
     #
     # The relabeling allows the actual service scrape endpoint to be configured
@@ -142,13 +136,10 @@ data:
     # * `prometheus.io/port`: If the metrics are exposed on a different port to the
     # service then set this appropriately.
     - job_name: 'kubernetes-service-endpoints'
-    
+
       kubernetes_sd_configs:
-      - api_servers:
-        - 'https://10.10.10.1'
-        in_cluster: true
-        role: endpoint
-    
+      - role: endpoints
+
       relabel_configs:
       - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
         action: keep
@@ -168,9 +159,73 @@ data:
         replacement: $1:$2
       - action: labelmap
         regex: __meta_kubernetes_service_label_(.+)
-      - source_labels: [__meta_kubernetes_service_namespace]
+      - source_labels: [__meta_kubernetes_namespace]
         action: replace
         target_label: kubernetes_namespace
       - source_labels: [__meta_kubernetes_service_name]
         action: replace
         target_label: kubernetes_name
+
+
+    ### HOME ####
+    #############
+    - job_name: 'node-home'
+      metrics_path: /node_exporter/metrics
+      basic_auth:
+        username: user
+        password: TabyikDeag8
+      static_configs:
+      - targets:
+        - home.5pi.de
+
+    - job_name: 'pushgateway-home'
+      metrics_path: /pushgateway/metrics
+      basic_auth:
+        username: user
+        password: TabyikDeag8
+      static_configs:
+      - targets:
+        - home.5pi.de
+
+    - job_name: 'blackbox-home'
+      metrics_path: /blackbox_exporter/probe
+      basic_auth:
+        username: user
+        password: TabyikDeag8
+      params:
+        module: [http_2xx_tcp4]
+      static_configs:
+      - targets:
+        - https://textkrieg.de
+        - https://5pi.de
+      relabel_configs:
+      - source_labels: [__address__]
+        regex: (.*)
+        target_label: __param_target
+        replacement: ${1}
+      - source_labels: [__param_target]
+        regex: (.*)
+        target_label: instance
+        replacement: ${1}
+      - source_labels: []
+        regex: .*
+        target_label: __address__
+        replacement: home.5pi.de
+
+    - job_name: 'snmp'
+      metrics_path: /snmp_exporter/snmp
+      basic_auth:
+        username: user
+        password: TabyikDeag8
+      params:
+        module: [default]
+      static_configs:
+      - targets:
+        - 192.168.1.1
+      relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: home.5pi.de
